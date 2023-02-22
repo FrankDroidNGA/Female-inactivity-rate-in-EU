@@ -1,0 +1,857 @@
+---
+title: "R Notebook for EU Analysis Data Project - Chukwuma Ofoegbu S211235"
+output: html_notebook
+---
+```{r}
+# Inactivity Rate:is the percentage of inactive persons in relation to the comparable total population.Inactive persons meaning persons part of the Labour force
+# but are not employed/working.
+# Inactivity Rate = 100 - Activity Rate
+#(Activity rate is the percentage of active persons in relation to the comparable total population.)
+```
+
+```{r}
+library(ggplot2)
+library(regions)  # to process Regional Statistics (NUTS )
+library(eurostat) # access to the Eurostat resources
+#library(tibbletime)
+library(dplyr)
+library(tidyverse)
+```
+
+Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Ctrl+Alt+I*.
+
+When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Ctrl+Shift+K* to preview the HTML file).
+
+The preview shows you a rendered HTML copy of the contents of the editor. Consequently, unlike *Knit*, *Preview* does not run any R code chunks. Instead, the output of the chunk when it was last run in the editor is displayed.
+```{r}
+# Step 2 - Download the data (directly from Eurostat, using eurostat library)
+activity_rate_eu <- get_eurostat("lfst_r_lfp2actrtn", time_format = "num")
+ls(activity_rate_eu)
+unique(activity_rate_eu$unit)
+unique(activity_rate_eu$geo)
+unique(activity_rate_eu$isced11)
+unique(activity_rate_eu$sex)
+unique(activity_rate_eu$time)
+unique(activity_rate_eu$citizen)
+unique(activity_rate_eu$age)
+```
+```{r}
+# Step 3 - Clean and filter the data  (Female inactivity rate aged 25-54)
+
+activity_rate_eu <- activity_rate_eu %>%                        
+  mutate(    edu = 
+               case_when(
+                 isced11 == "ED0-2" ~ "edu_low",
+                 isced11 == "ED3_4" ~ "edu_medium",
+                 isced11 == "ED5-8" ~ "edu_high",
+                 isced11 == "NRP" ~ "NRP",
+                 isced11 == "TOTAL" ~ "edu_total"
+               )
+  ) %>% 
+  select(geo, unit, age, sex, edu, time, values, citizen)
+
+# The inactivity rate is gotten as
+inactivity_rate_eu <- activity_rate_eu
+inactivity_rate_eu$values <- 100 - inactivity_rate_eu$values
+
+```
+
+```{r}
+# First 5 rows of the activity rate
+head(activity_rate_eu, 5)
+
+# First 5 rows of the inactivity rate
+head(inactivity_rate_eu, 5)
+```
+
+
+```{r}
+# Filtering Regions for NUTS 2 and NUTS 0
+library(regions)
+eu_region <- nuts_changes
+ls(eu_region)
+names(eu_region) 
+unique(eu_region$typology)
+
+
+eu_region_2 <- nuts_changes %>%                 #nuts_changes - European Union: Recoded NUTS units 1995-2021
+  filter(typology== "nuts_level_2") %>% 
+  select(typology, code_2016, geo_name_2016) %>%
+  drop_na()
+
+eu_region_0 <- nuts_changes %>%                 #nuts_changes - European Union: Recoded NUTS units 1995-2021
+  filter(typology== "country") %>% 
+  select(typology, code_2016, geo_name_2016) %>%
+  drop_na()
+
+library(stringr)  # command str_sub()
+
+## Nuts 2
+eu_region_2$rob1 <- str_sub(eu_region_2$code_2016, 3, 4) #auxiliary variable to remove Extra-regions
+eu_region_2$rob2 <- str_sub(eu_region_2$code_2016, 1, 2) #auxiliary variable to remove UK regions
+
+eu_region_2 <- eu_region_2  %>%   #filtering regions
+  filter(!rob1 == "ZZ") %>%              #remove extra region
+  filter(!rob2 == "UK") %>%              #remove UK
+  filter(!code_2016 %in% c("FRY1", "FRY2", "FRY3", "FRY4", "FRY5")) %>%  #remove French overseas regions
+  mutate(geo = code_2016) %>%
+  select(geo)
+
+## Nuts 0
+eu_region_0$rob1 <- str_sub(eu_region_0$code_2016, 3, 4) #auxiliary variable to remove Extra-regions
+eu_region_0$rob2 <- str_sub(eu_region_0$code_2016, 1, 2) #auxiliary variable to remove UK regions
+
+eu_region_0 <- eu_region_0  %>%   #filtering regions
+  filter(!rob1 == "ZZ") %>%              #remove extra region
+  filter(!rob2 == "UK") %>%              #remove UK
+  filter(!code_2016 %in% c("FRY1", "FRY2", "FRY3", "FRY4", "FRY5")) %>%  #remove French overseas regions
+  mutate(geo = code_2016) %>%
+  select(geo)
+
+unique(eu_region_0)
+unique(eu_region_2)
+
+```
+```{r}
+# NUTS 0
+# inactivity rate 2019 Females 25-54 NUTS 0
+inactivity_rate_eu_2019_F_0 <- inner_join(inactivity_rate_eu, eu_region_0) %>%  #merge the preliminary data frame with selected regions 
+  filter(age == "Y25-54") %>%
+  filter(sex == "F") %>%
+  filter(time== 2019) %>%
+  filter(edu!="edu_total") %>%
+  filter(edu!="NRP") %>%
+  filter(citizen=="TOTAL") %>%
+  select(geo, edu, time, values)
+
+# inactivity rate 2020 Females 25-54 NUTS 0
+inactivity_rate_eu_2020_F_0 <- inner_join(inactivity_rate_eu, eu_region_0) %>%  #merge the preliminary data frame with selected regions 
+  filter(age == "Y25-54") %>%
+  filter(sex == "F") %>%
+  filter(edu!="edu_total") %>%
+  filter(time== 2020) %>%
+  filter(edu!="NRP") %>%
+  filter(citizen=="TOTAL") %>%
+  select(geo, edu, time, values)
+
+# inactivity rate 2021 Females 25-54 NUTS 0
+inactivity_rate_eu_2021_F_0 <- inner_join(inactivity_rate_eu, eu_region_0) %>%  #merge the preliminary data frame with selected regions 
+  filter(age == "Y25-54") %>%
+  filter(sex == "F") %>%
+  filter(edu!="edu_total") %>%
+  filter(edu!="NRP") %>%
+  filter(citizen=="TOTAL") %>%
+  filter(time== 2021) %>%
+  select(geo, edu, time, values)
+
+```
+```{r}
+# NUTS 2
+# inactivity rate 2019 Females 25-54 NUTS 2
+inactivity_rate_eu_2019_F_2 <- inner_join(inactivity_rate_eu, eu_region_2) %>%  #merge the preliminary data frame with selected regions 
+  filter(age == "Y25-54") %>%
+  filter(sex == "F") %>%
+  filter(time== 2019) %>%
+  filter(edu!="edu_total") %>%
+  filter(edu!="NRP") %>%
+  filter(citizen=="TOTAL") %>%
+  select(geo, edu, time, values)
+
+# inactivity rate 2020 Females 25-54 NUTS 2
+inactivity_rate_eu_2020_F_2 <- inner_join(inactivity_rate_eu, eu_region_2) %>%  #merge the preliminary data frame with selected regions 
+  filter(age == "Y25-54") %>%
+  filter(sex == "F") %>%
+  filter(time== 2020) %>%
+  filter(edu!="edu_total") %>%
+  filter(edu!="NRP") %>%
+  filter(citizen=="TOTAL") %>%
+  select(geo, edu, time, values)
+
+# inactivity rate 2021 Females 25-54 NUTS 0
+inactivity_rate_eu_2021_F_2 <- inner_join(inactivity_rate_eu, eu_region_2) %>%  #merge the preliminary data frame with selected regions 
+  filter(age == "Y25-54") %>%
+  filter(sex == "F") %>%
+  filter(time== 2021) %>%
+  filter(edu!="edu_total") %>%
+  filter(edu!="NRP") %>%
+  filter(citizen=="TOTAL") %>%
+  select(geo, edu, time, values)
+```
+```{r}
+library(VIM)
+mice_plot_1 <- aggr(inactivity_rate_eu_2019_F_0, col=c('navyblue','yellow'),
+                    numbers=TRUE, sortVars=TRUE,
+                    labels=names(inactivity_rate_eu_2019_F_0), cex.axis=.7,
+                    gap=3, ylab=c("Missing data for inactivity rate eu 2019 F (25-54)","Pattern"))
+
+
+```
+
+```{r}
+mice_plot_2 <- aggr(inactivity_rate_eu_2020_F_0, col=c('navyblue','yellow'),
+                    numbers=TRUE, sortVars=TRUE,
+                    labels=names(inactivity_rate_eu_2020_F_0), cex.axis=.7,
+                    gap=3, ylab=c("Missing data","Pattern"))
+```
+
+```{r}
+mice_plot_3 <- aggr(inactivity_rate_eu_2021_F_0, col=c('navyblue','yellow'),
+                    numbers=TRUE, sortVars=TRUE,
+                    labels=names(inactivity_rate_eu_2021_F_0), cex.axis=.7,
+                    gap=3, ylab=c("Missing data","Pattern"))
+```
+
+```{r}
+mice_plot_4 <- aggr(inactivity_rate_eu_2019_F_2, col=c('navyblue','yellow'),
+                    numbers=TRUE, sortVars=TRUE,
+                    labels=names(inactivity_rate_eu_2019_F_2), cex.axis=.7,
+                    gap=3, ylab=c("Missing data","Pattern"))
+```
+
+```{r}
+mice_plot_5 <- aggr(inactivity_rate_eu_2020_F_2, col=c('navyblue','yellow'),
+                    numbers=TRUE, sortVars=TRUE,
+                    labels=names(inactivity_rate_eu_2020_F_2), cex.axis=.7,
+                    gap=3, ylab=c("Missing data","Pattern"))
+```
+
+```{r}
+mice_plot_6 <- aggr(inactivity_rate_eu_2021_F_2, col=c('navyblue','yellow'),
+                    numbers=TRUE, sortVars=TRUE,
+                    labels=names(inactivity_rate_eu_2021_F_2), cex.axis=.7,
+                    gap=3, ylab=c("Missing data","Pattern"))
+```
+```{r}
+#The NUTS 0 do not have missing values.
+#The NUTS 2 data, have missing values. On the Values Column
+# install.packages("mice")
+library(mice)
+summary(inactivity_rate_eu_2019_F_2)
+# using the pmm algorithm (predictive mean matching)
+my_imp_1 = mice(inactivity_rate_eu_2019_F_2, m=5, method = c("", "", "", "pmm"),maxit = 20)
+my_imp_1$imp$values
+# the 3rd iteration is chosen, due to it's closeness to the mean
+inactivity_rate_eu_2019_F_2 = complete(my_imp_1,5)
+summary(inactivity_rate_eu_2019_F_2)
+```
+```{r}
+#For 2020 NUTS 2
+summary(inactivity_rate_eu_2020_F_2)
+# using the pmm algorithm (predictive mean matching)
+my_imp_2 = mice(inactivity_rate_eu_2020_F_2, m=5, method = c("", "", "", "pmm"),maxit = 20)
+my_imp_2$imp$values
+# the 3rd iteration is chosen, due to it's closeness to the mean
+inactivity_rate_eu_2020_F_2 = complete(my_imp_2,3)
+summary(inactivity_rate_eu_2020_F_2) 
+
+```
+```{r}
+# For 2021 NUTS 2
+summary(inactivity_rate_eu_2021_F_2)
+# using the pmm algorithm (predictive mean matching)
+my_imp_3 = mice(inactivity_rate_eu_2021_F_2, m=5, method = c("", "", "", "pmm"),maxit = 20)
+my_imp_3$imp$values
+# the 2nd iteration is chosen, due to it's closeness to the mean
+inactivity_rate_eu_2021_F_2 = complete(my_imp_3,2)
+summary(inactivity_rate_eu_2021_F_2) 
+
+```
+
+
+```{r}
+# b. Identify Outliers
+#install.packages("rstatix")
+library("rstatix")
+
+inactivity_rate_eu_2019_F_0 %>%identify_outliers(values) 
+inactivity_rate_eu_2020_F_0 %>%identify_outliers(values)
+inactivity_rate_eu_2021_F_0 %>%identify_outliers(values)
+inactivity_rate_eu_2019_F_2 %>%identify_outliers(values) 
+inactivity_rate_eu_2020_F_2 %>%identify_outliers(values)
+inactivity_rate_eu_2021_F_2 %>%identify_outliers(values)
+```
+
+```{r}
+# c. Calculate mean values, standard deviation, max and min, range
+min(inactivity_rate_eu_2019_F_0$values)
+max(inactivity_rate_eu_2019_F_0$values)
+
+dat <- list(inactivity_rate_eu_2019_F_0, inactivity_rate_eu_2020_F_0, inactivity_rate_eu_2021_F_0, inactivity_rate_eu_2019_F_2, inactivity_rate_eu_2020_F_2, inactivity_rate_eu_2021_F_2)
+
+# Defining an empty dataframe
+
+df = data.frame()
+
+# Defining a for loop
+
+for (i in dat) {
+    
+    output = c(mean(i$values),sd(i$values),min(i$values), max(i$values), range(i$values))
+    
+    # Using rbind() to append the output of one iteration to the dataframe
+    df = rbind(df, output)
+}
+
+# naming the columns
+colnames(df)<-c("mean", "Standard Dev", "min", "max", "range least", "range end")
+row.names(df) <- c("2019 nuts 0", "2020 nuts 0", "2021 nuts 0", "2019 nuts 2", "2020 nuts 2", "2021 nuts 2")
+
+# printing the dataframe
+df
+
+```
+
+```{r}
+# d. Present the data using boxplot
+library(ggplot2)
+level_orderX <- c("edu_low", "edu_medium","edu_high")   #order of the variable on the figure
+
+# 2019 NUTS 0
+ggplot(inactivity_rate_eu_2019_F_0, aes(x = factor(edu, level=level_orderX), y = values, fill=edu)) + 
+  xlab("Level of education") + ylab("inactivity Rate")+
+  stat_boxplot(geom = "errorbar",
+              order = c("edu_low", "edu_medium", "edu_high"),
+               width = 0.25) + 
+  geom_boxplot(alpha = 0.8,          # Fill transparency
+           colour = "#474747",       # Border color
+           outlier.colour = 1) +
+guides(fill = guide_legend(title = "NUTS 0 EU Females inactivity Rate in 2019 25-54"))
+
+# 2020 Nuts 0
+ggplot(inactivity_rate_eu_2020_F_0, aes(x = factor(edu, level=level_orderX), y = values, fill=edu)) + 
+  xlab("Level of education") + ylab("inactivity Rate")+
+  stat_boxplot(geom = "errorbar",
+              order = c("edu_low", "edu_medium", "edu_high"),
+               width = 0.25) + 
+  geom_boxplot(alpha = 0.8,          # Fill transparency
+           colour = "#474747",       # Border color
+           outlier.colour = 1) +
+guides(fill = guide_legend(title = "NUTS 0 EU Females inactivity Rate in 2020 25-54"))
+
+# 2021 Nuts 0
+ggplot(inactivity_rate_eu_2021_F_0, aes(x = factor(edu, level=level_orderX), y = values, fill=edu)) + 
+  xlab("Level of education") + ylab("inactivity Rate")+
+  stat_boxplot(geom = "errorbar",
+              order = c("edu_low", "edu_medium", "edu_high"),
+               width = 0.25) + 
+  geom_boxplot(alpha = 0.8,          # Fill transparency
+           colour = "#474747",       # Border color
+           outlier.colour = 1) +
+guides(fill = guide_legend(title = "NUTS 0 EU Females inactivity Rate in 2021 25-54"))
+
+
+# 2019 NUTS 2
+ggplot(inactivity_rate_eu_2019_F_2, aes(x = factor(edu, level=level_orderX), y = values, fill=edu)) + 
+  xlab("Level of education") + ylab("inactivity Rate")+
+  stat_boxplot(geom = "errorbar",
+              order = c("edu_low", "edu_medium", "edu_high"),
+               width = 0.25) + 
+  geom_boxplot(alpha = 0.8,          # Fill transparency
+           colour = "#474747",       # Border color
+           outlier.colour = 1) +
+guides(fill = guide_legend(title = "NUTS 2 EU Females inactivity Rate in 2019 25-54"))
+
+# 2020 Nuts 2
+ggplot(inactivity_rate_eu_2020_F_2, aes(x = factor(edu, level=level_orderX), y = values, fill=edu)) + 
+  xlab("Level of education") + ylab("inactivity Rate")+
+  stat_boxplot(geom = "errorbar",
+              order = c("edu_low", "edu_medium", "edu_high"),
+               width = 0.25) + 
+  geom_boxplot(alpha = 0.8,          # Fill transparency
+           colour = "#474747",       # Border color
+           outlier.colour = 1) +
+guides(fill = guide_legend(title = "NUTS 2 EU Females inactivity Rate in 2020 25-54"))
+
+# 2021 Nuts 0
+ggplot(inactivity_rate_eu_2021_F_2, aes(x = factor(edu, level=level_orderX), y = values, fill=edu)) + 
+  xlab("Level of education") + ylab("inactivity Rate")+
+  stat_boxplot(geom = "errorbar",
+              order = c("edu_low", "edu_medium", "edu_high"),
+               width = 0.25) + 
+  geom_boxplot(alpha = 0.8,          # Fill transparency
+           colour = "#474747",       # Border color
+           outlier.colour = 1) +
+guides(fill = guide_legend(title = "NUTS 2 EU Females inactivity Rate in 2021 25-54"))
+
+
+```
+```{r}
+# removing the outliers and recalculating the mean
+```
+
+
+```{r}
+library(tidyverse)
+library(eurostat)
+library(leaflet)
+library(sf)
+library(scales)
+library(cowplot)
+library(ggthemes)
+
+get_eurostat_geospatial(resolution = 10, 
+                        nuts_level = 0, 
+                        year = 2016)
+
+EU27 <- eu_countries %>% 
+  filter(code != 'UK') %>% 
+  select(geo = code, name)
+SHP_0 <- get_eurostat_geospatial(resolution = 10, 
+                                 nuts_level = 0, 
+                                 year = 2016)
+SHP_27 <- SHP_0 %>% 
+  select(geo = NUTS_ID, geometry) %>% 
+  inner_join(EU27, by = "geo") %>% 
+  arrange(geo) %>% 
+  st_as_sf()
+
+
+
+tec00115_shp <- inactivity_rate_eu_2019_F_0 %>% 
+  select(geo, values) %>% 
+  inner_join(SHP_27, by = "geo") %>% 
+  st_as_sf()
+
+tec00115_shp %>% 
+  ggplot(aes(fill = values)) +
+  geom_sf(
+    size = 0.1, 
+    color = "#F3F3F3"
+  ) +
+  scale_fill_gradient2_tableau(
+    palette = "Temperature Diverging",
+    name = "%",
+    breaks = pretty_breaks(10),
+    guide = guide_colorbar(
+      direction = "vertical", 
+      title.position = "top", 
+      label.position = "right",  
+      barwidth = unit(0.4, "cm"), 
+      barheight = unit(7, "cm"),  
+      ticks = TRUE, 
+    )
+  ) + 
+  scale_x_continuous(limits = c(-10, 35)) +
+  scale_y_continuous(limits = c(35, 65)) +
+  labs(
+    title = "inactivity Rate Plot of EU Females aged 25-54 @NUTS 0",
+    subtitle = "inactivity Rate in 2019",
+    caption = "Data: Eurostat lfst_r_lfp2actrtn"
+  ) +
+  theme_void() +
+  theme(legend.position = c(0.97, 0.50))
+```
+```{r}
+library(tidyverse)
+library(eurostat)
+library(leaflet)
+library(sf)
+library(scales)
+library(cowplot)
+library(ggthemes)
+
+get_eurostat_geospatial(resolution = 10, 
+                        nuts_level = 0, 
+                        year = 2016)
+
+EU27 <- eu_countries %>% 
+  filter(code != 'UK') %>% 
+  select(geo = code, name)
+SHP_0 <- get_eurostat_geospatial(resolution = 10, 
+                                 nuts_level = 0, 
+                                 year = 2016)
+SHP_27 <- SHP_0 %>% 
+  select(geo = NUTS_ID, geometry) %>% 
+  inner_join(EU27, by = "geo") %>% 
+  arrange(geo) %>% 
+  st_as_sf()
+
+
+
+tec00115_shp <- inactivity_rate_eu_2020_F_0 %>% 
+  select(geo, values) %>% 
+  inner_join(SHP_27, by = "geo") %>% 
+  st_as_sf()
+
+tec00115_shp %>% 
+  ggplot(aes(fill = values)) +
+  geom_sf(
+    size = 0.1, 
+    color = "#F3F3F3"
+  ) +
+  scale_fill_gradient2_tableau(
+    palette = "Temperature Diverging",
+    name = "%",
+    breaks = pretty_breaks(10),
+    guide = guide_colorbar(
+      direction = "vertical", 
+      title.position = "top", 
+      label.position = "right",  
+      barwidth = unit(0.4, "cm"), 
+      barheight = unit(7, "cm"),  
+      ticks = TRUE, 
+    )
+  ) + 
+  scale_x_continuous(limits = c(-10, 35)) +
+  scale_y_continuous(limits = c(35, 65)) +
+  labs(
+    title = "inactivity Rate Plot of EU Females aged 25-54 @NUTS 0",
+    subtitle = "inactivity Rate in 2020",
+    caption = "Data: Eurostat lfst_r_lfp2actrtn"
+  ) +
+  theme_void() +
+  theme(legend.position = c(0.97, 0.50))
+```
+
+```{r}
+library(tidyverse)
+library(eurostat)
+library(leaflet)
+library(sf)
+library(scales)
+library(cowplot)
+library(ggthemes)
+
+get_eurostat_geospatial(resolution = 10, 
+                        nuts_level = 0, 
+                        year = 2016)
+
+EU27 <- eu_countries %>% 
+  filter(code != 'UK') %>% 
+  select(geo = code, name)
+SHP_0 <- get_eurostat_geospatial(resolution = 10, 
+                                 nuts_level = 0, 
+                                 year = 2016)
+SHP_27 <- SHP_0 %>% 
+  select(geo = NUTS_ID, geometry) %>% 
+  inner_join(EU27, by = "geo") %>% 
+  arrange(geo) %>% 
+  st_as_sf()
+
+
+
+tec00115_shp <- inactivity_rate_eu_2021_F_0 %>% 
+  select(geo, values) %>% 
+  inner_join(SHP_27, by = "geo") %>% 
+  st_as_sf()
+
+tec00115_shp %>% 
+  ggplot(aes(fill = values)) +
+  geom_sf(
+    size = 0.1, 
+    color = "#F3F3F3"
+  ) +
+  scale_fill_gradient2_tableau(
+    palette = "Temperature Diverging",
+    name = "%",
+    breaks = pretty_breaks(10),
+    guide = guide_colorbar(
+      direction = "vertical", 
+      title.position = "top", 
+      label.position = "right",  
+      barwidth = unit(0.4, "cm"), 
+      barheight = unit(7, "cm"),  
+      ticks = TRUE, 
+    )
+  ) + 
+  scale_x_continuous(limits = c(-10, 35)) +
+  scale_y_continuous(limits = c(35, 65)) +
+  labs(
+    title = "inactivity Rate Plot of EU Females aged 25-54 @NUTS 0",
+    subtitle = "inactivity Rate in 2021",
+    caption = "Data: Eurostat lfst_r_lfp2actrtn"
+  ) +
+  theme_void() +
+  theme(legend.position = c(0.97, 0.50))
+```
+```{r}
+library(tidyverse)
+library(eurostat)
+library(leaflet)
+library(sf)
+library(scales)
+library(cowplot)
+library(ggthemes)
+
+SHP_2_3035  <- get_eurostat_geospatial(
+  resolution = 10,
+  nuts_level = 2,
+  year = 2016,
+  crs = 3035)
+
+edat_lfse_04_shp <- inactivity_rate_eu_2019_F_2 %>% 
+  right_join(SHP_2_3035, by = "geo") %>% 
+  st_as_sf()
+edat_lfse_04_shp %>% 
+  ggplot(aes(fill = values)) +
+  geom_sf(
+    size = 0.1, 
+    color = "#333333"
+  ) +
+  scale_fill_distiller(
+    palette = "YlGnBu",
+    direction = 1, 
+    name = "%",
+    breaks = pretty_breaks(10),
+    na.value = "gray80",
+    guide = guide_colorbar(
+      direction = "vertical", 
+      title.position = "top", 
+      label.position = "right",  
+      barwidth = unit(0.4, "cm"), 
+      barheight = unit(6, "cm"),  
+      ticks = TRUE, 
+    )
+  ) + 
+  scale_x_continuous(limits = c(2500000, 7000000)) +
+  scale_y_continuous(limits = c(1600000, 5200000)) +
+  labs(
+    title = "inactivity Rate Plot of EU Females aged 25-54 @NUTS 2",
+    subtitle = "inactivity rate in 2019",
+    caption = "Data: Eurostat lfst_r_lfp2actrtn"
+  ) +
+  theme_void() +
+  theme(legend.position = c(0.94, 0.70))
+```
+```{r}
+library(tidyverse)
+library(eurostat)
+library(leaflet)
+library(sf)
+library(scales)
+library(cowplot)
+library(ggthemes)
+
+SHP_2_3035  <- get_eurostat_geospatial(
+  resolution = 10,
+  nuts_level = 2,
+  year = 2016,
+  crs = 3035)
+
+edat_lfse_04_shp <- inactivity_rate_eu_2020_F_2 %>% 
+  right_join(SHP_2_3035, by = "geo") %>% 
+  st_as_sf()
+edat_lfse_04_shp %>% 
+  ggplot(aes(fill = values)) +
+  geom_sf(
+    size = 0.1, 
+    color = "#333333"
+  ) +
+  scale_fill_distiller(
+    palette = "YlGnBu",
+    direction = 1, 
+    name = "%",
+    breaks = pretty_breaks(10),
+    na.value = "gray80",
+    guide = guide_colorbar(
+      direction = "vertical", 
+      title.position = "top", 
+      label.position = "right",  
+      barwidth = unit(0.4, "cm"), 
+      barheight = unit(6, "cm"),  
+      ticks = TRUE, 
+    )
+  ) + 
+  scale_x_continuous(limits = c(2500000, 7000000)) +
+  scale_y_continuous(limits = c(1600000, 5200000)) +
+  labs(
+    title = "inactivity Rate Plot of EU Females aged 25-54 @NUTS 2",
+    subtitle = "inactivity rate in 2020",
+    caption = "Data: Eurostat lfst_r_lfp2actrtn"
+  ) +
+  theme_void() +
+  theme(legend.position = c(0.94, 0.70))
+```
+
+```{r}
+library(tidyverse)
+library(eurostat)
+library(leaflet)
+library(sf)
+library(scales)
+library(cowplot)
+library(ggthemes)
+
+SHP_2_3035  <- get_eurostat_geospatial(
+  resolution = 10,
+  nuts_level = 2,
+  year = 2016,
+  crs = 3035)
+
+edat_lfse_04_shp <- inactivity_rate_eu_2021_F_2 %>% 
+  right_join(SHP_2_3035, by = "geo") %>% 
+  st_as_sf()
+edat_lfse_04_shp %>% 
+  ggplot(aes(fill = values)) +
+  geom_sf(
+    size = 0.1, 
+    color = "#333333"
+  ) +
+  scale_fill_distiller(
+    palette = "YlGnBu",
+    direction = 1, 
+    name = "%",
+    breaks = pretty_breaks(10),
+    na.value = "gray80",
+    guide = guide_colorbar(
+      direction = "vertical", 
+      title.position = "top", 
+      label.position = "right",  
+      barwidth = unit(0.4, "cm"), 
+      barheight = unit(6, "cm"),  
+      ticks = TRUE, 
+    )
+  ) + 
+  scale_x_continuous(limits = c(2500000, 7000000)) +
+  scale_y_continuous(limits = c(1600000, 5200000)) +
+  labs(
+    title = "inactivity Rate Plot of EU Females aged 25-54 @NUTS 2",
+    subtitle = "inactivity rate in 2021",
+    caption = "Data: Eurostat lfst_r_lfp2actrtn"
+  ) +
+  theme_void() +
+  theme(legend.position = c(0.94, 0.70))
+```
+```{r}
+# Step 6: ANOVA analysis
+# a
+## Edu vs Values
+
+## 1. 2019 @ NUTS 0 Level.
+#Normality Test
+shapiro.test(inactivity_rate_eu_2019_F_0$values)
+shapiro.test(inactivity_rate_eu_2020_F_0$values)
+shapiro.test(inactivity_rate_eu_2021_F_0$values)
+shapiro.test(inactivity_rate_eu_2019_F_2$values)
+shapiro.test(inactivity_rate_eu_2020_F_2$values)
+shapiro.test(inactivity_rate_eu_2021_F_2$values)
+
+anova_list <- list(inactivity_rate_eu_2019_F_0, inactivity_rate_eu_2020_F_0, inactivity_rate_eu_2021_F_0, inactivity_rate_eu_2019_F_2, inactivity_rate_eu_2020_F_2, inactivity_rate_eu_2020_F_2)
+
+# All the p values are insignificant, hence the null hypothesis is rejected. All the data sets are not Normally distributed. Non-Parametric tests will be used.
+
+```
+```{r}
+# Non Parametric Anova Analysis
+#  Kruskal-Wallis rank sum test       
+
+# Ordered Variaables for edu
+inactivity_rate_eu_2019_F_0$edu <- ordered(inactivity_rate_eu_2019_F_0$edu,levels = c("edu_low", "edu_medium", "edu_high"))
+inactivity_rate_eu_2020_F_0$edu <- ordered(inactivity_rate_eu_2020_F_0$edu,levels = c("edu_low", "edu_medium", "edu_high"))
+inactivity_rate_eu_2021_F_0$edu <- ordered(inactivity_rate_eu_2021_F_0$edu,levels = c("edu_low", "edu_medium", "edu_high"))
+inactivity_rate_eu_2019_F_2$edu <- ordered(inactivity_rate_eu_2019_F_2$edu,levels = c("edu_low", "edu_medium", "edu_high"))
+inactivity_rate_eu_2020_F_2$edu <- ordered(inactivity_rate_eu_2020_F_2$edu,levels = c("edu_low", "edu_medium", "edu_high"))
+inactivity_rate_eu_2021_F_2$edu <- ordered(inactivity_rate_eu_2021_F_2$edu,levels = c("edu_low", "edu_medium", "edu_high"))
+
+#kruskal.test(edu~values, data = inactivity_rate_eu_2019_F_0)
+anova_list <- list(inactivity_rate_eu_2019_F_0, inactivity_rate_eu_2020_F_0, inactivity_rate_eu_2021_F_0, inactivity_rate_eu_2019_F_2, inactivity_rate_eu_2020_F_2, inactivity_rate_eu_2020_F_2)
+
+for (x in anova_list) {
+    z<- kruskal.test(values~edu, data = x)
+    print(z)
+}
+
+# As the p-values for NUTS 0 are greater than the significance level 0.05, we can conclude that there are no significant differences between the educational level and rate of inactivity.
+# H0: The Educational Level does not affect the inactivity Rate. (The Educational Levels have the same distribution)
+# H1: The Educational Level affects the inactivity rate. (The Educational Levels do not have the same distribution)
+```
+
+```{r}
+# Post hoc Anova Test
+# Dunn Test
+library(FSA)
+
+# Dunn's Test Data Prep
+
+for (x in anova_list) {
+    z<- dunnTest(x$values, x$edu, method = "bonferroni")
+    print(z)
+}
+```
+
+```{r}
+# b. Across the Years
+
+# Merging the Data Sets for NUTS 0 inactivity_rate_eu_F_0 = inactivity_rate_eu_2019_F_0 + inactivity_rate_eu_2020_F_0 + inactivity_rate_eu_2021_F_0
+inactivity_rate_eu_F_0 <- do.call("rbind", list(inactivity_rate_eu_2019_F_0, inactivity_rate_eu_2020_F_0, inactivity_rate_eu_2021_F_0))
+
+# High Education NUTS 0
+inactivity_rate_eu_F_0_high <- inactivity_rate_eu_F_0 %>%
+  filter(edu=="edu_high") %>%
+  select(geo, edu, time, values)
+
+# Medium Education NUTS 0
+inactivity_rate_eu_F_0_medium <- inactivity_rate_eu_F_0 %>%
+  filter(edu=="edu_medium") %>%
+  select(geo, edu, time, values)
+
+# Low Education NUTS 0
+inactivity_rate_eu_F_0_low <- inactivity_rate_eu_F_0 %>%
+  filter(edu=="edu_low") %>%
+  select(geo, edu, time, values)
+
+```
+
+
+```{r}
+# Merging the Data Sets for NUTS 2 inactivity_rate_eu_F_2 = inactivity_rate_eu_2019_F_2 + inactivity_rate_eu_2020_F_2 + inactivity_rate_eu_2021_F_2
+inactivity_rate_eu_F_2 <- do.call("rbind", list(inactivity_rate_eu_2019_F_2, inactivity_rate_eu_2020_F_2, inactivity_rate_eu_2021_F_2))
+
+# High Education NUTS 2
+inactivity_rate_eu_F_2_high <- inactivity_rate_eu_F_2 %>%
+  filter(edu=="edu_high") %>%
+  select(geo, edu, time, values)
+
+# Medium Education NUTS 2
+inactivity_rate_eu_F_2_medium <- inactivity_rate_eu_F_2 %>%
+  filter(edu=="edu_medium") %>%
+  select(geo, edu, time, values)
+
+# Low Education NUTS 2
+inactivity_rate_eu_F_2_low <- inactivity_rate_eu_F_2 %>%
+  filter(edu=="edu_low") %>%
+  select(geo, edu, time, values)
+
+```
+
+```{r}
+#Normality Test
+shapiro.test(inactivity_rate_eu_F_0_high$values)
+shapiro.test(inactivity_rate_eu_F_0_medium$values)
+shapiro.test(inactivity_rate_eu_F_0_low$values)
+shapiro.test(inactivity_rate_eu_F_2_high$values)
+shapiro.test(inactivity_rate_eu_F_2_medium$values)
+shapiro.test(inactivity_rate_eu_F_2_low$values)
+
+```
+
+```{r}
+# Non Parametric Anova Analysis
+#  Kruskal-Wallis rank sum test       
+
+# Ordered Variaables for edu
+
+#kruskal.test(edu~values, data = inactivity_rate_eu_2019_F_0)
+anova_list_2 <- list(inactivity_rate_eu_F_0_high, inactivity_rate_eu_F_0_medium, inactivity_rate_eu_F_0_low, inactivity_rate_eu_F_2_high, inactivity_rate_eu_F_2_medium, inactivity_rate_eu_F_2_low)
+
+for (x in anova_list_2) {
+    z<- kruskal.test(values~time, data = x)
+    print(z)
+}
+
+# As the p-values for NUTS 0 are greater than the significance level 0.05, we can conclude that there are no significant differences between the educational level and rate of inactivity.
+# H0: The time/year does not affect the inactivity Rate. (The time levels have the same distribution)
+# H1: The time/year affects the inactivity rate. (The time Levels do not have the same distribution)
+
+# The years/periods observed: 2019, 2020 and 2021 almost all have the same distribution on the activity rate (there is no significant difference in their effects on EU Female Activity Rate).
+```
+
+```{r}
+
+# Dunn's Test for inactivity_rate_eu_F_2_high
+
+inactivity_rate_eu_F_2_high$time <- ordered(inactivity_rate_eu_F_2_high$time,levels = c(2019, 2020, 2021))
+
+dunnTest(inactivity_rate_eu_F_2_high$values, inactivity_rate_eu_F_2_high$time, method = "bonferroni")
+```
+
