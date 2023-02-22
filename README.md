@@ -18,3 +18,6 @@ The more educated an EU female in the age range 25 – 54, the lower their inact
 MICE PMM algorithm is an effective tool for generating missing values in a dataset, and was employed here.
 It is seen that the highest inactivity rates come from ITF 3, ITF 4 and RO12. The inactivity rate in Italy is supported by this
 article (https://www.thelocal.it/20210308/why-does-italy-have-such-a-high-female-unemployment-rate/).
+
+## The project is deployed via shiny apps
+https://frankdroid.shinyapps.io/eu-data/
